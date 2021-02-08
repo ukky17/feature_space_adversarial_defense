@@ -29,12 +29,12 @@ def random_noise(model, img, radii, lb, n_iter):
         imgs_noise = []
         for _ in range(n_iter):
             noise = random_dir_torch(img.shape).detach().cpu().numpy() * dd
-            img_noise = img + noise
+            img2 = img + noise
 
             if lb == 0:
-                img_noise = np.where(img_noise >= 0, img_noise, img - noise)
+                img2 = np.where(img2 >= 0, img2, img - noise)
 
-            imgs_noise.append(img_noise)
+            imgs_noise.append(img2)
 
         # dataloader
         imgs_noise = np.array(imgs_noise)
@@ -43,8 +43,8 @@ def random_noise(model, img, radii, lb, n_iter):
 
         with torch.no_grad():
             classes = []
-            for (img_noise, _) in _DL:
-                preds = torch.argmax(model(img_noise.to(device)), 1)
+            for (img, _) in DL:
+                preds = torch.argmax(model(img.to(device)), 1)
                 classes += preds.detach().cpu().numpy().tolist()
 
             counters.append(Counter(classes))
@@ -52,7 +52,6 @@ def random_noise(model, img, radii, lb, n_iter):
 
 def main(data1, data2, radii, classifier, lb):
     dist_mean = np.mean(np.sum((data1 - data2) ** 2, axis=(1, 2, 3)) ** 0.5)
-    print(dist_mean)
 
     DL = utils.CustomDataset(data1, data2)
     DL = DataLoader(DL, batch_size=1, shuffle=False)
@@ -79,10 +78,10 @@ def main(data1, data2, radii, classifier, lb):
 
     plt = plt.figure()
     ax = plt.subplot(1, 1, 1)
-    labels = ["x: ori, cla: ori", "x: adv, cla: adv", "x: adv, cla: ori"]
-    for (i, col, fmt, label) in zip([0, 1, 2], ['m', 'c', 'c'], ['', '', '--'],
-                                    labels):
-        ax.plot(radii, np.nanmean(props[i], axis=0), col+fmt, label=label, linewidth=1)
+    labels = ['x: ori, cla: ori', 'x: adv, cla: adv', 'x: adv, cla: ori']
+    for (i, fmt, label) in zip([0, 1, 2], ['m', 'c', 'c--'], labels):
+        prop = np.nanmean(props[i], axis=0)
+        ax.plot(radii, prop, col+fmt, label=label, linewidth=1)
     ax.axvline(dist_mean, color='k', linewidth=1)
     ax.set_ylim([0, 105])
     ax.set_xlabel('r')
@@ -131,8 +130,8 @@ if __name__ == '__main__':
         radii = np.arange(0, 101, 5)
         lb = -float('inf')
 
-        data1 = d['x1'][:params.n_data]
-        data2 = d['x2'][:params.n_data]
+        data1 = data_dict['x1'][:params.n_data]
+        data2 = data_dict['x2'][:params.n_data]
 
     elif params.space == 'hidden':
         classifier = h
@@ -142,6 +141,7 @@ if __name__ == '__main__':
             radii = np.arange(0, 81, 4)
         lb = 0
 
+        # get representation at the target layer
         tmp_DL = utils.CustomDataset(data_dict['x1'][:params.n_data],
                                      data_dict['x2'][:params.n_data])
         tmp_DL = DataLoader(tmp_DL, batch_size=400, shuffle=False)

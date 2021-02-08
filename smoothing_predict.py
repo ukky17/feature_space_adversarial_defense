@@ -108,6 +108,7 @@ if __name__ == '__main__':
             sigmas = np.arange(0, 0.42, 0.02)
         lb = 0
 
+        # get representation at the target layer
         tmp_DL = utils.CustomDataset(data_dict['x1'][:params.n_data],
                                      data_dict['x2'][:params.n_data])
         tmp_DL = DataLoader(tmp_DL, batch_size=400, shuffle=False)
@@ -133,7 +134,7 @@ if __name__ == '__main__':
     # plot and save
     fig = plt.figure()
     ax = plt.subplot(1, 1, 1)
-    ax.plot(sigmas, ratio, '--', linewidth=1)
+    ax.plot(sigmas, ratio, linewidth=1)
     ax.set_ylim([0, 105])
     ax.set_xlabel('Sigma')
     ax.set_ylabel('% correct')
