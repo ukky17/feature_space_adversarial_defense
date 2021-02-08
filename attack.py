@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
 from torch.utils.data import DataLoader
 
 import model_loader
@@ -25,10 +24,11 @@ def cohen_predict(classifier, x, sigma, N0, n_class):
 
     return torch.mean(outs, 0)
 
-def train_oneepoch(dataloader, params):
+def train_oneepoch(dataloader, params, device):
     cum_loss = [0] * len(loss_names)
     x2_all = np.zeros_like(data_dict['x1'])
 
+    zero_tensor = torch.zeros(1, device=device)
     for batch_idx, (x1, label) in enumerate(dataloader):
         x1 = x1.to(device)
         label = label.to(device)
@@ -39,7 +39,7 @@ def train_oneepoch(dataloader, params):
         label_onehot = label_onehot.to(device)
 
         ## update Generator
-        optimzier_G.zero_grad()
+        optimizer_G.zero_grad()
 
         x2 = G(x1)
 
@@ -52,34 +52,34 @@ def train_oneepoch(dataloader, params):
         other2 = torch.max(torch.mul(output2, (1-label_onehot))-label_onehot*10000, 1)[0]
 
         loss_hidden = torch.mean((g(x2) - g(x1)) ** 2)
-        loss_class = torch.mean(torch.max(real1 - other1, 0))
-        loss_smooth = torch.mean(torch.max(real2 - other2, 0))
+        loss_class = torch.mean(torch.max(real1 - other1, zero_tensor))
+        loss_smooth = torch.mean(torch.max(real2 - other2, zero_tensor))
         loss_adv = -torch.mean(fake_logit)
         loss_G = loss_hidden + params.lambda_c * loss_class + \
                  params.lambda_adv * loss_adv + \
                  params.lambda_smooth * loss_smooth
 
         loss_G.backward()
-        optimzier_G.step()
+        optimizer_G.step()
 
         ## update Discriminator
-        optimzier_D.zero_grad()
+        optimizer_D.zero_grad()
 
         fake_logit = D(x2.detach())
         real_logit = D(x1)
         loss_D = nn.ReLU()(1.0 - real_logit).mean() + nn.ReLU()(1.0 + fake_logit).mean()
 
         loss_D.backward()
-        optimzier_D.step()
+        optimizer_D.step()
 
         # stock loss
         loss_list = [loss_hidden, loss_class, loss_adv, loss_smooth, loss_G, loss_D]
-        for i, _loss in enumerate(loss_list):
-            cum_loss[i] += _loss.item() * len(x1)
+        for i, l in enumerate(loss_list):
+            cum_loss[i] += l.item() * len(x1)
 
         # stock x2
-        _idx = batch_idx * params.batch_size
-        x2_all[_idx: _idx + len(x2)] = x2.detach().cpu().numpy()
+        idx = batch_idx * params.batch_size
+        x2_all[idx: idx + len(x2)] = x2.detach().cpu().numpy()
 
     for i in range(len(cum_loss)):
         cum_loss[i] /= len(x2_all)
@@ -98,7 +98,7 @@ def plot_ex(x1, x2, epoch, device):
             img = np.transpose(imgs[i], (1, 2, 0))
             img = (img - img.min()) / (img.max() - img.min())
             ax = plt.subplot(10, 8, 2 * i + j + 1)
-            ax.imshow(_img)
+            ax.imshow(img)
             ax.set_title(title + '  ' + labelStr[c[i]])
             plt.axis('off')
     plt.savefig(save_dir + 'img_epoch' + str(epoch) + '.png')
@@ -119,11 +119,11 @@ def acc_under_attack(data_dict, device):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, choices=['cifar10', 'stl10'])
+    parser.add_argument('--dataset', type=str, choices=['stl10'])
     parser.add_argument('--basenet', type=str, choices=['VGG_stl', 'ResNet50_stl'])
     parser.add_argument('--model_path', type=str)
 
-    parser.add_argument('--filename', type=str)
+    parser.add_argument('--exp_name', type=str)
     parser.add_argument('--target_layer', type=str)
 
     parser.add_argument('--epochs', type=int, default=1500)
@@ -143,11 +143,12 @@ if __name__ == "__main__":
 
     params = parser.parse_args()
     print(params)
+    print()
 
     device = torch.device('cuda')
 
     # save settings
-    save_dir = 'results/' + params.filename + '/'
+    save_dir = 'results/' + params.exp_name + '/'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     shutil.copy('attack.py', save_dir)
@@ -174,7 +175,7 @@ if __name__ == "__main__":
     optimizer_D = optim.Adam(filter(lambda p: p.requires_grad, D.parameters()),
                              lr=params.lr_D, betas=(0.0, 0.9))
 
-    loss_names = ['hidden', 'class', 'GAN_G', 'smooth' 'total_G', 'total_D']
+    loss_names = ['hidden', 'class', 'GAN_G', 'smooth', 'total_G', 'total_D']
     losses = np.zeros((params.epochs, len(loss_names)))
     print(loss_names)
     for epoch in range(params.epochs):
@@ -202,4 +203,4 @@ if __name__ == "__main__":
 
     # accuracy
     acc, avg_distort = acc_under_attack(data_dict, device)
-    print('accuracy, distort: {}'.format(acc))
+    print('accuracy: {}'.format(acc))

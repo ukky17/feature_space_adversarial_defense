@@ -1,5 +1,6 @@
-import torch
+import numpy as np
 
+import torch
 import torchvision.datasets as dst
 import torchvision.transforms as tfs
 from torch.utils.data import DataLoader
@@ -43,6 +44,6 @@ def select_correct(dataloader, model_Z, device):
                 data_dict['x1'] = data
                 data_dict['target'] = target
             else:
-                data_dict['x1'] = np.concatenate([d['x1'], data], axis=0)
-                data_dict['target'] = np.concatenate([d['target'], target], axis=0)
+                data_dict['x1'] = np.concatenate([data_dict['x1'], data], axis=0)
+                data_dict['target'] = np.concatenate([data_dict['target'], target], axis=0)
     return data_dict
