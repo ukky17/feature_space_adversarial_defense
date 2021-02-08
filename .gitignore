@@ -2,8 +2,8 @@
 .ipynb_checkpoints/
 
 data/
-generated/
-models/
+results/
+model_pth/
 
 # copied from https://github.com/github/gitignore/blob/master/Python.gitignore
 

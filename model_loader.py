@@ -1,68 +1,42 @@
-import os
-import numpy as np
-
 import torch
 import torch.nn as nn
-import torch.utils.data as Data
 
-# import generator
-import model
+from model import classifier, gan
 
 def load_encoder(basenet, target_layer, model_path, device):
-    if basenet == 'VGG_cifar':
-        model1 = model.VGG_cifar()
-        model1 = nn.DataParallel(model1, device_ids=range(1))
-        _model2, _model3 = model.VGG_cifar2, model.VGG_cifar3
-    elif basenet == 'VGG_stl':
-        model1 = model.VGG_stl()
-        _model2, _model3 = model.VGG_stl2, model.VGG_stl3
+    if basenet == 'VGG_stl':
+        model_Z = classifier.VGG_stl()
+        get_model_g, get_model_h = classifier.VGG_stl2, classifier.VGG_stl3
     elif basenet == 'ResNet50_stl':
-        model1 = model.ResNet_stl(50)
-        _model2, _model3 = model.ResNet_stl2, model.ResNet_stl3
-    elif basenet == 'ResNet101_stl':
-        model1 = model.ResNet_stl(101)
-        _model2, _model3 = model.ResNet_stl2, model.ResNet_stl3
-    elif basenet == 'ResNet152_stl':
-        model1 = model.ResNet_stl(152)
-        _model2, _model3 = model.ResNet_stl2, model.ResNet_stl3
-    elif basenet == 'CaffeNet':
-        model1 = model.CaffeNet()
-        _model2, _model3 = model.CaffeNet2, model.CaffeNet3
-    elif basenet == 'AlexNet':
-        model1 = model.AlexNet()
-        _model2, _model3 = model.AlexNet2, model.AlexNet3
+        model_Z = classifier.ResNet_stl(50)
+        get_model_g, get_model_h = classifier.ResNet_stl2, classifier.ResNet_stl3
 
-    model1.load_state_dict(torch.load(model_path))
-    model1.to(device)
-    model1.eval()
+    model_Z.load_state_dict(torch.load(model_path))
+    model_Z.to(device)
+    model_Z.eval()
+    for param in model_Z.parameters():
+        param.requires_grad = False
 
-    model2 = _model2(model1, target_layer)
-    model3 = _model3(model1, target_layer)
+    model_g = get_model_g(model_Z, target_layer)
+    model_g.to(device)
+    model_g.eval()
+    for param in model_g.parameters():
+        param.requires_grad = False
 
-    return model1, model2, model3
+    model_h = get_model_h(model_Z, target_layer)
+    model_h.to(device)
+    model_h.eval()
+    for param in model_h.parameters():
+        param.requires_grad = False
 
-def load_generator(basenet, target_layer, device):
-    if basenet == 'CaffeNet':
-        if target_layer in {'conv3', 'conv4'}:
-            gen = generator.DeePSiMConv34()
-        elif target_layer == 'pool5':
-            gen = generator.DeePSiMPool5()
-        elif target_layer in {'fc6', 'fc7'}:
-            gen = generator.DeePSiMFc()
+    return model_Z, model_g, model_h
 
-        model_path = 'models/deepsim_pytorch/XDREAM/' + target_layer + '.pt'
+def load_generator(img_size, device):
+    model_G = gan.GeneratorEncDec(img_size)
+    model_G.to(device)
+    model_G.apply(gan.weights_init_normal)
 
-    elif basenet == 'VGG_cifar':
-        if target_layer == '22':
-            gen = generator.DeePSiM_VGG_cifar22()
-            model_path = 'models/deepsim_pytorch/VGG_cifar/200622_2.pth'
-
-    elif basenet == 'VGG_stl':
-        if target_layer == '22':
-            gen = generator.DeePSiM_VGG_stl22()
-            model_path = 'models/deepsim_pytorch/VGG_stl/net_g_epoch127.pth'
-
-    gen.load_state_dict(torch.load(model_path))
-    gen.to(device)
-    gen.eval()
-    return gen
+    model_D = gan.Discriminator(img_size)
+    model_D.to(device)
+    model_D.apply(gan.weights_init_normal)
+    return model_G, model_D
