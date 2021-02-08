@@ -16,7 +16,7 @@ import model_loader
 import data
 import utils
 
-def cohen_predict(classifier, x, sigma, N0, n_class):
+def smoothing(classifier, x, sigma, N0, n_class):
     outs = torch.zeros(N0, x.size()[0], n_class, device=device)
     for i in range(N0):
         noise = torch.randn_like(x, device=device) * sigma
@@ -38,13 +38,13 @@ def train_oneepoch(dataloader, params, device):
         label_onehot.scatter_(1, index, 1)
         label_onehot = label_onehot.to(device)
 
-        ## update Generator
+        # update Generator
         optimizer_G.zero_grad()
 
         x2 = G(x1)
 
         output1 = Z(x2)
-        output2 = cohen_predict(Z, x2, params.sigma, params.N0, n_class)
+        output2 = smoothing(Z, x2, params.sigma, params.N0, n_class)
         fake_logit = D(x2)
         real1 = torch.max(torch.mul(output1, label_onehot), 1)[0]
         other1 = torch.max(torch.mul(output1, (1-label_onehot))-label_onehot*10000, 1)[0]
@@ -62,7 +62,7 @@ def train_oneepoch(dataloader, params, device):
         loss_G.backward()
         optimizer_G.step()
 
-        ## update Discriminator
+        # update Discriminator
         optimizer_D.zero_grad()
 
         fake_logit = D(x2.detach())
@@ -117,7 +117,7 @@ def acc_under_attack(data_dict, device):
 
     return correct / len(data_dict['x1'])
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, choices=['stl10'])
     parser.add_argument('--basenet', type=str, choices=['VGG_stl', 'ResNet50_stl'])

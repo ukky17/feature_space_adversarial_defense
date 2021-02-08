@@ -1,11 +1,7 @@
-""" evaluate a smoothed classifier on a dataset
-"""
 import os
-import sys
 import math
 import shutil
 import argparse
-import json
 from tqdm import tqdm
 
 import numpy as np
@@ -13,17 +9,13 @@ import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
-import torch.utils.data as Data
-
-import torchvision.datasets as dst
-import torchvision.transforms as tfs
 from torch.utils.data import DataLoader
 
-import model_loader as model_loader
-import utils as utils
+import model_loader
+import data
+import utils
 
-def _sample_noise(x, base_classifier, sigma, bound, num, n_class):
+def sample_noise(x, classifier, sigma, lb, num, n_class):
     def _count_arr(arr, length):
         counts = np.zeros(length, dtype=int)
         for idx in arr:
@@ -40,144 +32,114 @@ def _sample_noise(x, base_classifier, sigma, bound, num, n_class):
             noise = torch.randn_like(batch, device=device) * sigma
             batch_new = batch + noise
 
-            if bound[0] != -float('inf'):
-                batch_new = torch.where(batch_new >= bound[0], batch_new, batch - noise)
-            elif bound[1] != float('inf'):
-                batch_new = torch.where(batch_new <= bound[1], batch_new, batch - noise)
+            if lb == 0:
+                batch_new = torch.where(batch_new >= 0, batch_new, batch - noise)
 
-            predictions = base_classifier(batch_new).argmax(1)
-            counts += _count_arr(predictions.detach().cpu().numpy(), n_class)
+            preds = torch.argmax(classifier(batch_new), 1)
+            counts += _count_arr(preds.detach().cpu().numpy(), n_class)
         return counts
 
-def main(base_classifier, x1, x2, sigma, bound, n_class):
-    DL = utils.CustomDataset(x1, x2)
+def main(classifier, data1, data2, sigma, lb, n_class=10):
+    DL = utils.CustomDataset(data1, data2)
     DL = DataLoader(DL, batch_size=1, shuffle=False)
 
-    is_accurate = np.zeros((4, len(x1)))
-    for idx, (_x1, _x2) in enumerate(DL):
-        _x1, _x2 = _x1.to(device), _x2.to(device)
-        _c1 = torch.argmax(base_classifier(_x1), dim=1).item()
-        _c2 = torch.argmax(base_classifier(_x2), dim=1).item()
+    is_accurate = np.zeros(len(data1))
+    for idx, (d1, d2) in enumerate(DL):
+        d1, d2 = d1.to(device), d2.to(device)
+        c1 = torch.argmax(classifier(d1), 1).item()
+        c2 = torch.argmax(classifier(d2), 1).item()
 
-        if _c1 == _c2:
-            is_accurate[:, idx] = [np.nan, np.nan, np.nan, np.nan]
+        if c1 == c2:
+            is_accurate[idx] = np.nan
             continue
 
-        counts1 = _sample_noise(_x1, base_classifier, sigma, bound, params.N0,
-                                n_class)
-        pred1 = counts1.argmax().item()
-        counts2 = _sample_noise(_x2, base_classifier, sigma, bound, params.N0,
-                                n_class)
+        counts2 = sample_noise(d2, classifier, sigma, lb, params.N0, n_class)
         pred2 = counts2.argmax().item()
 
-        is_accurate[:, idx] = [int(pred1 == _c1), int(pred2 == _c2),
-                               int(pred2 == _c1), int(pred1 == _c2)]
+        is_accurate[idx] = [int(pred2 == c1)]
     return is_accurate
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, default='stl10',
-                        choices=['cifar10', 'imagenet', 'stl10'])
-    parser.add_argument('--basenet', type=str, default='VGG_stl')
-    parser.add_argument('--model_path', type=str, default='models/vgg_stl.pth')
-    parser.add_argument('--target_layer', type=str, default='27')
-    parser.add_argument("--batch_size", type=int, default=400)
+    parser.add_argument('--dataset', type=str, default='stl10')
+    parser.add_argument('--basenet', type=str, choices=['VGG_stl', 'ResNet50_stl'])
+    parser.add_argument('--model_path', type=str)
 
-    parser.add_argument('--filename', type=str)
-    parser.add_argument('--data_path', type=str,
-                        default='generated/200916_2/c0.5_layer27_variables.npy')
-    parser.add_argument('--n_data', type=int, default=128)
-    parser.add_argument('--space', type=str, default='input',
-                        choices=['input', 'hidden'])
-    parser.add_argument("--N0", type=int, default=100)
+    parser.add_argument('--exp_name', type=str)
+    parser.add_argument('--target_layer', type=str)
+    parser.add_argument('--batch_size', type=int, default=400)
+
+    parser.add_argument('--n_data', type=int)
+    parser.add_argument('--space', type=str, choices=['input', 'hidden'])
+    parser.add_argument('--N0', type=int, default=100)
 
     params = parser.parse_args()
 
     device = torch.device('cuda')
 
     # save settings
-    save_dir = 'generated/' + params.filename + '/'
+    save_dir = 'results/' + params.exp_name + '/'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    shutil.copy('cohen_predict.py', save_dir)
+    shutil.copy('smoothing_predict.py', save_dir)
 
     # images and targets
-    d = np.load(params.data_path, allow_pickle=True).item()
+    data_dict = np.load(save_dir + 'data_dict.npy', allow_pickle=True).item()
 
     # model
-    Z, g, model3 = model_loader.load_encoder(params.basenet, params.target_layer,
-                                             params.model_path, device)
-    for param in Z.parameters():
-        param.requires_grad = False
-    for param in g.parameters():
-        param.requires_grad = False
-    for param in model3.parameters():
-        param.requires_grad = False
-    Z.eval()
-    g.eval()
-    model3.eval()
-
-    if params.dataset == 'cifar10':
-        n_class, img_size = 10, 32
-    elif params.dataset == 'stl10':
-        n_class, img_size = 10, 96
-    elif params.dataset == 'imagenet':
-        n_class, img_size = 1000, 224
+    Z, g, h = model_loader.load_encoder(params.basenet,
+                                        params.target_layer,
+                                        params.model_path,
+                                        device)
 
     if params.space == 'input':
-        base_classifier = Z
+        classifier = Z
         sigmas = np.arange(0, 0.75, 0.05)
-        x1 = d['datas'][:params.n_data]
-        x2 = d['x2'][:params.n_data]
-        # x1 = np.array([_x1.detach().cpu().numpy() for _x1 in d['x1'][:params.n_data]])
-        # x2 = np.array([_x2.detach().cpu().numpy() for _x2 in d['x2'][:params.n_data]])
-        bound = (-float('inf'), float('inf'))
-    elif params.space == 'hidden':
-        base_classifier = model3
+        lb = -float('inf')
 
+        data1 = data_dict['x1'][:params.n_data]
+        data2 = data_dict['x2'][:params.n_data]
+
+    elif params.space == 'hidden':
+        classifier = h
         if params.basenet == 'VGG_stl':
             sigmas = np.arange(0, 5.25, 0.25)
         elif params.basenet == 'ResNet50_stl':
             sigmas = np.arange(0, 0.42, 0.02)
-        elif params.basenet == 'ResNet101_stl':
-            sigmas = np.arange(0, 1.05, 0.05)
-        elif params.basenet == 'ResNet152_stl':
-            sigmas = np.arange(0, 1.26, 0.06)
+        lb = 0
 
-        bound = (0, float('inf'))
-
-        _DL = utils.CustomDataset(d['datas'][:params.n_data],
-                                  d['x2'][:params.n_data])
-        # tmp1 = np.array([_x1.detach().cpu().numpy() for _x1 in d['x1'][:params.n_data]])
-        # tmp2 = np.array([_x2.detach().cpu().numpy() for _x2 in d['x2'][:params.n_data]])
-        # _DL = utils.CustomDataset(tmp1, tmp2)
-        _DL = DataLoader(_DL, batch_size=400, shuffle=False)
-        for i, (_x1, _x2) in enumerate(_DL):
-            _y1 = g(_x1.to(device)).detach().cpu().numpy()
-            _y2 = g(_x2.to(device)).detach().cpu().numpy()
+        tmp_DL = utils.CustomDataset(data_dict['x1'][:params.n_data],
+                                     data_dict['x2'][:params.n_data])
+        tmp_DL = DataLoader(tmp_DL, batch_size=400, shuffle=False)
+        for i, (x1, x2) in enumerate(tmp_DL):
+            y1 = g(x1.to(device)).detach().cpu().numpy()
+            y2 = g(x2.to(device)).detach().cpu().numpy()
             if i == 0:
-                x1, x2 = _y1, _y2
+                data1, data2 = y1, y2
             else:
-                x1 = np.concatenate([x1, _y1], axis=0)
-                x2 = np.concatenate([x2, _y2], axis=0)
+                data1 = np.concatenate([data1, y1], axis=0)
+                data2 = np.concatenate([data2, y2], axis=0)
 
-    accurate_all = np.zeros((4, len(x1), len(sigmas)))
+    accurate_all = np.zeros((len(data1), len(sigmas)))
     for s in tqdm(range(len(sigmas))):
-        is_accurate = main(base_classifier, x1, x2, sigmas[s], bound, n_class)
-        accurate_all[:, :, s] = is_accurate
+        accurate_all[:, s] = main(classifier, data1, data2, sigmas[s], lb)
 
-    ratio = 100 * np.nansum(accurate_all, axis=1) / \
-            np.sum(np.isnan(accurate_all[0]) == 0, axis=0)
+    # defense success rate
+    ratio = np.zeros(len(sigmas))
+    for s in range(len(sigmas)):
+        ratio[s] = 100 * np.sum(accurate_all[:, s] == 1) / \
+                    np.sum(np.isnan(accurate_all[:, s]) == 0)
 
-    # plot
+    # plot and save
     fig = plt.figure()
-    plt.plot(sigmas, ratio[0], label='x: ori, cla: ori', c='m')
-    plt.plot(sigmas, ratio[1], label='x: adv, cla: adv', c='c')
-    plt.plot(sigmas, ratio[2], '--', label='x: adv, cla: ori', c='c')
-    plt.ylim([0, 105])
-    plt.xlabel('Sigma')
-    plt.ylabel('% correct')
-    plt.legend()
+    ax = plt.subplot(1, 1, 1)
+    ax.plot(sigmas, ratio, '--', linewidth=1)
+    ax.set_ylim([0, 105])
+    ax.set_xlabel('Sigma')
+    ax.set_ylabel('% correct')
+    ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+    ax.yaxis.set_major_locator(plt.MaxNLocator(6))
+    ax.set_title(title)
     plt.savefig(save_dir + 'smoothing_' + params.space + '.png')
     plt.close()
     np.save(save_dir + 'cohen_predict_' + params.space, accurate_all)
