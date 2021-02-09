@@ -51,8 +51,9 @@ def main(data1, data2, radii, classifier, lb):
 
     props = np.zeros((3, len(data1), len(radii)))
     for idx, (d1, d2) in tqdm(enumerate(DL)):
-        pred1 = torch.argmax(classifier(d1.to(device)), 1).item()
-        pred2 = torch.argmax(classifier(d2.to(device)), 1).item()
+        d1, d2 = d1.to(device), d2.to(device)
+        pred1 = torch.argmax(classifier(d1), 1).item()
+        pred2 = torch.argmax(classifier(d2), 1).item()
 
         if pred1 == pred2:
             props[:, idx, :] = np.nan

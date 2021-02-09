@@ -45,8 +45,9 @@ def main(data1, data2, sigma, classifier, lb, n_class=10):
 
     is_correct = np.zeros(len(data1))
     for idx, (d1, d2) in enumerate(DL):
-        pred1 = torch.argmax(classifier(d1.to(device)), 1).item()
-        pred2 = torch.argmax(classifier(d2.to(device)), 1).item()
+        d1, d2 = d1.to(device), d2.to(device)
+        pred1 = torch.argmax(classifier(d1), 1).item()
+        pred2 = torch.argmax(classifier(d2), 1).item()
 
         if pred1 == pred2:
             is_correct[idx] = np.nan
@@ -54,7 +55,7 @@ def main(data1, data2, sigma, classifier, lb, n_class=10):
 
         counts2 = sample_noise(d2, classifier, sigma, lb, params.N0, n_class)
         pred2 = counts2.argmax().item()
-        is_correct[idx] = [int(pred2 == pred1)]
+        is_correct[idx] = int(pred2 == pred1)
     return is_correct
 
 if __name__ == '__main__':
@@ -122,7 +123,7 @@ if __name__ == '__main__':
     results = np.zeros((len(data1), len(sigmas)))
     ratio = np.zeros(len(sigmas))
     for s in tqdm(range(len(sigmas))):
-        is_correct = main(data1, data2, sigmas[s], clasifier, lb)
+        is_correct = main(data1, data2, sigmas[s], classifier, lb)
         results[:, s] = is_correct
         ratio[s] = 100 * np.sum(is_correct == 1) / np.sum(np.isnan(is_correct) == 0)
 

@@ -111,10 +111,10 @@ def get_acc(data_dict, device):
 
     with torch.no_grad():
         correct = 0
-        for (x2, output) in DL:
-            x2, label = x2.to(device), output.to(device)
+        for (x2, label) in DL:
+            x2, label = x2.to(device), label.to(device)
             pred = torch.argmax(Z(x2), 1)
-            correct += torch.sum(label.eq(idx)).item()
+            correct += torch.sum(label.eq(pred)).item()
 
     return correct / len(data_dict['x1'])
 
@@ -203,5 +203,5 @@ if __name__ == '__main__':
     np.save(save_dir + 'data_dict', data_dict)
 
     # accuracy
-    acc, avg_distort = get_acc(data_dict, device)
+    acc = get_acc(data_dict, device)
     print('accuracy: {}'.format(acc))

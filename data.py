@@ -6,15 +6,7 @@ import torchvision.transforms as tfs
 from torch.utils.data import DataLoader
 
 def data_loader(dataset, batch_size):
-    if dataset == 'cifar10':
-        transform_test = tfs.Compose([tfs.ToTensor()])
-        data_test = dst.CIFAR10('data/cifar10/', download=True, train=False,
-                                transform=transform_test)
-        dataloader = DataLoader(data_test, batch_size=batch_size, shuffle=False)
-        labelStr = ["airplane", "automobile", "bird", "cat", "deer", "dog",
-                    "frog", "horse", "ship", "truck"]
-        n_class, img_size = 10, (3, 32, 32)
-    elif dataset == 'stl10':
+    if dataset == 'stl10':
         transform_test  = tfs.Compose([tfs.ToTensor(),
                                        tfs.Normalize((0.5, 0.5, 0.5),
                                                      (0.5, 0.5, 0.5))])
