@@ -15,7 +15,7 @@ import model_loader
 import data
 import utils
 
-def smoothing(classifier, x, sigma, N0, n_class):
+def smoothing(classifier, x, sigma, N0, n_class, device):
     outs = torch.zeros(N0, x.size()[0], n_class, device=device)
     for i in range(N0):
         noise = torch.randn_like(x, device=device) * sigma
@@ -42,7 +42,7 @@ def train_oneepoch(dataloader, params, device):
         x2 = G(x1)
 
         output1 = Z(x2)
-        output2 = smoothing(Z, x2, params.sigma, params.N0, n_class)
+        output2 = smoothing(Z, x2, params.sigma, params.N0, n_class, device)
         fake_logit = D(x2)
         real1 = torch.max(torch.mul(output1, label_onehot), 1)[0]
         other1 = torch.max(torch.mul(output1, (1-label_onehot))-label_onehot*10000, 1)[0]
@@ -104,7 +104,7 @@ def plot_ex(x1, x2, epoch, device):
     plt.savefig(save_dir + 'img_epoch' + str(epoch) + '.png')
     plt.close()
 
-def get_acc(data_dict, device):
+def get_acc(data_dict, params, device):
     DL = utils.CustomDataset(data_dict['x2'], data_dict['target'])
     DL = DataLoader(DL, batch_size=params.batch_size, shuffle=False)
 
@@ -202,5 +202,5 @@ if __name__ == '__main__':
     np.save(save_dir + 'data_dict', data_dict)
 
     # accuracy
-    acc = get_acc(data_dict, device)
+    acc = get_acc(data_dict, params, device)
     print('accuracy: {}'.format(acc))

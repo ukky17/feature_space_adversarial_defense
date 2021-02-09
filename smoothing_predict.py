@@ -14,7 +14,7 @@ import model_loader
 import data
 import utils
 
-def sample_noise(x, classifier, sigma, lb, num, n_class):
+def sample_noise(x, classifier, sigma, lb, num, batch_size, device, n_class):
     def _count_arr(arr, length):
         counts = np.zeros(length, dtype=int)
         for idx in arr:
@@ -23,8 +23,8 @@ def sample_noise(x, classifier, sigma, lb, num, n_class):
 
     with torch.no_grad():
         counts = np.zeros(n_class, dtype=int)
-        for _ in range(math.ceil(num / params.batch_size)):
-            this_batch_size = min(params.batch_size, num)
+        for _ in range(math.ceil(num / batch_size)):
+            this_batch_size = min(batch_size, num)
             num -= this_batch_size
 
             batch = x.repeat((this_batch_size, 1, 1, 1))
@@ -38,7 +38,7 @@ def sample_noise(x, classifier, sigma, lb, num, n_class):
             counts += _count_arr(preds.detach().cpu().numpy(), n_class)
         return counts
 
-def main(data1, data2, sigma, classifier, lb, n_class=10):
+def main(data1, data2, sigma, classifier, lb, params, device, n_class=10):
     DL = utils.CustomDataset(data1, data2)
     DL = DataLoader(DL, batch_size=1, shuffle=False)
 
@@ -52,7 +52,8 @@ def main(data1, data2, sigma, classifier, lb, n_class=10):
             is_correct[idx] = np.nan
             continue
 
-        counts2 = sample_noise(d2, classifier, sigma, lb, params.N0, n_class)
+        counts2 = sample_noise(d2, classifier, sigma, lb, params.N0,
+                               params.batch_size, device, n_class)
         pred2 = counts2.argmax().item()
         is_correct[idx] = int(pred2 == pred1)
     return is_correct
@@ -122,7 +123,7 @@ if __name__ == '__main__':
     results = np.zeros((len(data1), len(sigmas)))
     ratio = np.zeros(len(sigmas))
     for s in tqdm(range(len(sigmas))):
-        is_correct = main(data1, data2, sigmas[s], classifier, lb)
+        is_correct = main(data1, data2, sigmas[s], classifier, lb, params, device)
         results[:, s] = is_correct
         ratio[s] = 100 * np.sum(is_correct == 1) / np.sum(np.isnan(is_correct) == 0)
 

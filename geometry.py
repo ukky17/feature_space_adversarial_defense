@@ -14,21 +14,21 @@ import model_loader
 import data
 import utils
 
-def random_dir_torch(dim):
+def random_dir_torch(dim, device):
     while True:
         vec = torch.randn(dim, device=device)
         r = torch.norm(vec).item()
         if r != 0.0:
             return vec / r
 
-def random_noise(model, data, radii, lb, n_iter):
+def random_noise(model, data, radii, lb, n_iter, device):
     with torch.no_grad():
         counters = []
         for r in radii:
             # add noise into `data`
             data_noise = torch.zeros((n_iter, ) + tuple(data.shape), device=device)
             for i in range(n_iter):
-                noise = random_dir_torch(tuple(data.shape)) * r
+                noise = random_dir_torch(tuple(data.shape), device) * r
                 data_new = data + noise
 
                 if lb == 0:
@@ -42,7 +42,7 @@ def random_noise(model, data, radii, lb, n_iter):
 
     return counters
 
-def main(data1, data2, radii, classifier, lb):
+def main(data1, data2, radii, classifier, lb, device):
     dist_mean = np.mean(np.sum((data1 - data2) ** 2, axis=(1, 2, 3)) ** 0.5)
 
     DL = utils.CustomDataset(data1, data2)
@@ -58,29 +58,14 @@ def main(data1, data2, radii, classifier, lb):
             props[:, idx, :] = np.nan
             continue
 
-        counters1 = random_noise(classifier, d1[0], radii, lb, n_iter=100)
-        counters2 = random_noise(classifier, d2[0], radii, lb, n_iter=100)
+        counters1 = random_noise(classifier, d1[0], radii, lb, 100, device)
+        counters2 = random_noise(classifier, d2[0], radii, lb, 100, device)
 
         props[0, idx] = [counter[pred1] for counter in counters1]
         props[1, idx] = [counter[pred2] for counter in counters2]
         props[2, idx] = [counter[pred1] for counter in counters2]
 
-    fig = plt.figure()
-    ax = plt.subplot(1, 1, 1)
-    labels = ['Center: x1, Class: x1', 'Center: x2, Class: x2',
-              'Center: x2, Class: x1']
-    for (i, fmt, label) in zip([0, 1, 2], ['m', 'c', 'c--'], labels):
-        ax.plot(radii, np.nanmean(props[i], axis=0), fmt, label=label)
-    ax.axvline(dist_mean, color='k')
-    ax.set_ylim([0, 105])
-    ax.set_xlabel('r')
-    ax.set_ylabel('Class freq (%)')
-    ax.xaxis.set_major_locator(plt.MaxNLocator(6))
-    ax.yaxis.set_major_locator(plt.MaxNLocator(6))
-    ax.legend()
-    plt.savefig(save_dir + 'geometry_' + params.space + '.png')
-    plt.close()
-    np.save(save_dir + 'geometry_' + params.space, props)
+    return props, dist_mean
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -142,4 +127,22 @@ if __name__ == '__main__':
                 data1 = np.concatenate([data1, y1], axis=0)
                 data2 = np.concatenate([data2, y2], axis=0)
 
-    main(data1, data2, radii, classifier, lb)
+    props, dist_mean = main(data1, data2, radii, classifier, lb, device)
+
+    # plot
+    fig = plt.figure()
+    ax = plt.subplot(1, 1, 1)
+    labels = ['Center: x1, Class: x1', 'Center: x2, Class: x2',
+              'Center: x2, Class: x1']
+    for (i, fmt, label) in zip([0, 1, 2], ['m', 'c', 'c--'], labels):
+        ax.plot(radii, np.nanmean(props[i], axis=0), fmt, label=label)
+    ax.axvline(dist_mean, color='k')
+    ax.set_ylim([0, 105])
+    ax.set_xlabel('r')
+    ax.set_ylabel('Class freq (%)')
+    ax.xaxis.set_major_locator(plt.MaxNLocator(6))
+    ax.yaxis.set_major_locator(plt.MaxNLocator(6))
+    ax.legend()
+    plt.savefig(save_dir + 'geometry_' + params.space + '.png')
+    plt.close()
+    np.save(save_dir + 'geometry_' + params.space, props)
