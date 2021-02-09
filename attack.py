@@ -94,7 +94,8 @@ def plot_ex(x1, x2, epoch, device):
     # plot
     plt.figure(figsize=(20, 20))
     for i in range(40):
-        for j, imgs, title, pred in zip(range(2), [x1, x2], ['x1', 'x2'], [pred1, pred2]):
+        for j, imgs, title, pred in zip(range(2), [x1, x2], ['x1', 'x2'],
+                                        [pred1, pred2]):
             img = np.transpose(imgs[i], (1, 2, 0))
             img = (img - img.min()) / (img.max() - img.min())
             ax = plt.subplot(10, 8, 2 * i + j + 1)
@@ -191,11 +192,8 @@ if __name__ == '__main__':
             params.lr_D *= params.lr_decay
             params.lr_G *= params.lr_decay
 
-        if epoch % 64 == 0:
-            # plot the first 40 images and save weights
+        if epoch % 64 == 0 or epoch == params.epochs - 1:
             plot_ex(data_dict['x1'][:40], x2_all[:40], epoch, device)
-
-    plot_ex(data_dict['x1'][:40], x2_all[:40], epoch, device)
 
     # save
     data_dict['x2'] = x2_all
