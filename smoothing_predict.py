@@ -43,21 +43,19 @@ def main(classifier, data1, data2, sigma, lb, n_class=10):
     DL = utils.CustomDataset(data1, data2)
     DL = DataLoader(DL, batch_size=1, shuffle=False)
 
-    is_accurate = np.zeros(len(data1))
+    is_correct = np.zeros(len(data1))
     for idx, (d1, d2) in enumerate(DL):
-        d1, d2 = d1.to(device), d2.to(device)
-        c1 = torch.argmax(classifier(d1), 1).item()
-        c2 = torch.argmax(classifier(d2), 1).item()
+        pred1 = torch.argmax(classifier(d1.to(device)), 1).item()
+        pred2 = torch.argmax(classifier(d2.to(device)), 1).item()
 
-        if c1 == c2:
-            is_accurate[idx] = np.nan
+        if pred1 == pred2:
+            is_correct[idx] = np.nan
             continue
 
         counts2 = sample_noise(d2, classifier, sigma, lb, params.N0, n_class)
         pred2 = counts2.argmax().item()
-
-        is_accurate[idx] = [int(pred2 == c1)]
-    return is_accurate
+        is_correct[idx] = [int(pred2 == pred1)]
+    return is_correct
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -121,26 +119,25 @@ if __name__ == '__main__':
                 data1 = np.concatenate([data1, y1], axis=0)
                 data2 = np.concatenate([data2, y2], axis=0)
 
-    accurate_all = np.zeros((len(data1), len(sigmas)))
+    results = np.zeros((len(data1), len(sigmas)))
     for s in tqdm(range(len(sigmas))):
-        accurate_all[:, s] = main(classifier, data1, data2, sigmas[s], lb)
+        results[:, s] = main(classifier, data1, data2, sigmas[s], lb)
 
     # defense success rate
     ratio = np.zeros(len(sigmas))
     for s in range(len(sigmas)):
-        ratio[s] = 100 * np.sum(accurate_all[:, s] == 1) / \
-                    np.sum(np.isnan(accurate_all[:, s]) == 0)
+        ratio[s] = 100 * np.sum(results[:, s] == 1) / \
+                    np.sum(np.isnan(results[:, s]) == 0)
 
     # plot and save
     fig = plt.figure()
     ax = plt.subplot(1, 1, 1)
-    ax.plot(sigmas, ratio, linewidth=1)
+    ax.plot(sigmas, ratio)
     ax.set_ylim([0, 105])
     ax.set_xlabel('Sigma')
     ax.set_ylabel('% correct')
     ax.xaxis.set_major_locator(plt.MaxNLocator(5))
     ax.yaxis.set_major_locator(plt.MaxNLocator(6))
-    ax.set_title(title)
-    plt.savefig(save_dir + 'smoothing_' + params.space + '.png')
+    plt.savefig(save_dir + 'smoothing_predict_' + params.space + '.png')
     plt.close()
-    np.save(save_dir + 'cohen_predict_' + params.space, accurate_all)
+    np.save(save_dir + 'smoothing_predict_' + params.space, results)

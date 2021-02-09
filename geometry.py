@@ -16,38 +16,31 @@ import data
 import utils
 
 def random_dir_torch(dim):
+    while True:
+        vec = torch.randn(dim, device=device)
+        r = torch.norm(vec).item()
+        if r != 0.0:
+            return vec / r
+
+def random_noise(model, data, radii, lb, n_iter):
     with torch.no_grad():
-        while True:
-            vec = torch.randn(dim, device=device, dtype=torch.float)
-            r = torch.norm(vec).item()
-            if r != 0.0:
-                return vec / r
+        counters = []
+        for r in radii:
+            # add noise into `data`
+            data_noise = torch.zeros((n_iter, ) + tuple(data.shape), device=device)
+            for i in range(n_iter):
+                noise = random_dir_torch(tuple(data.shape)) * r
+                data_new = data + noise
 
-def random_noise(model, img, radii, lb, n_iter):
-    counters = []
-    for dd in radii:
-        imgs_noise = []
-        for _ in range(n_iter):
-            noise = random_dir_torch(img.shape).detach().cpu().numpy() * dd
-            img2 = img + noise
+                if lb == 0:
+                    data_new = torch.where(data_new >= 0, data_new, data - noise)
 
-            if lb == 0:
-                img2 = np.where(img2 >= 0, img2, img - noise)
+                data_noise[i] = data_new
 
-            imgs_noise.append(img2)
+            # predict and count
+            preds = torch.argmax(model(data_noise), 1).detach().cpu().numpy()
+            counters.append(Counter(preds.tolist()))
 
-        # dataloader
-        imgs_noise = np.array(imgs_noise)
-        DL = utils.CustomDataset(imgs_noise, np.zeros(n_iter))
-        DL = DataLoader(DL, batch_size=400, shuffle=False)
-
-        with torch.no_grad():
-            classes = []
-            for (img, _) in DL:
-                preds = torch.argmax(model(img.to(device)), 1)
-                classes += preds.detach().cpu().numpy().tolist()
-
-            counters.append(Counter(classes))
     return counters
 
 def main(data1, data2, radii, classifier, lb):
@@ -56,39 +49,34 @@ def main(data1, data2, radii, classifier, lb):
     DL = utils.CustomDataset(data1, data2)
     DL = DataLoader(DL, batch_size=1, shuffle=False)
 
-    props = np.zeros((4, len(x1), len(radii)))
+    props = np.zeros((3, len(x1), len(radii)))
     for idx, (d1, d2) in tqdm(enumerate(DL)):
-        c1 = torch.argmax(classifier(d1.to(device)), 1).item()
-        c2 = torch.argmax(classifier(d2.to(device)), 1).item()
+        pred1 = torch.argmax(classifier(d1.to(device)), 1).item()
+        pred2 = torch.argmax(classifier(d2.to(device)), 1).item()
 
-        if c1 == c2:
+        if pred1 == pred2:
             props[:, idx, :] = np.nan
             continue
 
-        d1 = d1.detach().cpu().numpy()[0]
-        d2 = d2.detach().cpu().numpy()[0]
+        counters1 = random_noise(classifier, d1[0], radii, lb, n_iter=100)
+        counters2 = random_noise(classifier, d2[0], radii, lb, n_iter=100)
 
-        counters1 = random_noise(classifier, d1, radii, lb, n_iter=100)
-        counters2 = random_noise(classifier, d2, radii, lb, n_iter=100)
+        props[0, idx] = [counter[pred1] for counter in counters1]
+        props[1, idx] = [counter[pred2] for counter in counters2]
+        props[2, idx] = [counter[pred1] for counter in counters2]
 
-        props[0, idx] = [counter[_c1] for counter in counters1]
-        props[1, idx] = [counter[_c2] for counter in counters2]
-        props[2, idx] = [counter[_c1] for counter in counters2]
-        props[3, idx] = [counter[_c2] for counter in counters1]
-
-    plt = plt.figure()
+    fig = plt.figure()
     ax = plt.subplot(1, 1, 1)
-    labels = ['x: ori, cla: ori', 'x: adv, cla: adv', 'x: adv, cla: ori']
+    labels = ['Center: x1, Class: x1', 'Center: x2, Class: x2',
+              'Center: x2, Class: x1']
     for (i, fmt, label) in zip([0, 1, 2], ['m', 'c', 'c--'], labels):
-        prop = np.nanmean(props[i], axis=0)
-        ax.plot(radii, prop, col+fmt, label=label, linewidth=1)
-    ax.axvline(dist_mean, color='k', linewidth=1)
+        ax.plot(radii, np.nanmean(props[i], axis=0), fmt, label=label)
+    ax.axvline(dist_mean, color='k')
     ax.set_ylim([0, 105])
     ax.set_xlabel('r')
     ax.set_ylabel('Class freq (%)')
     ax.xaxis.set_major_locator(plt.MaxNLocator(6))
     ax.yaxis.set_major_locator(plt.MaxNLocator(6))
-    ax.set_title(params.space + ' space')
     ax.legend()
     plt.savefig(save_dir + 'geometry_' + params.space + '.png')
     plt.close()

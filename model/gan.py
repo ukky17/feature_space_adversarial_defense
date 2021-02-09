@@ -25,7 +25,7 @@ class GeneratorEncDec(nn.Module):
 
         def upsample(in_feat, out_feat, normalize=True):
             layers = [nn.utils.spectral_norm(
-                    nn.ConvTranspose2d(in_feat, out_feat, 4, stride=2, padding=1))]
+                 nn.ConvTranspose2d(in_feat, out_feat, 4, stride=2, padding=1))]
             if normalize:
                 layers.append(nn.BatchNorm2d(out_feat))
             layers.append(nn.ReLU(inplace=True))

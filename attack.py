@@ -30,8 +30,7 @@ def train_oneepoch(dataloader, params, device):
 
     zero_tensor = torch.zeros(1, device=device)
     for batch_idx, (x1, label) in enumerate(dataloader):
-        x1 = x1.to(device)
-        label = label.to(device)
+        x1, label = x1.to(device), label.to(device)
 
         index = label.cpu().view(-1, 1)
         label_onehot = torch.zeros(x1.size()[0], n_class)
@@ -52,8 +51,8 @@ def train_oneepoch(dataloader, params, device):
         other2 = torch.max(torch.mul(output2, (1-label_onehot))-label_onehot*10000, 1)[0]
 
         loss_hidden = torch.mean((g(x2) - g(x1)) ** 2)
-        loss_class = torch.mean(torch.max(real1 - other1, zero_tensor))
-        loss_smooth = torch.mean(torch.max(real2 - other2, zero_tensor))
+        loss_class = torch.mean(torch.maximum(real1 - other1, zero_tensor))
+        loss_smooth = torch.mean(torch.maximum(real2 - other2, zero_tensor))
         loss_adv = -torch.mean(fake_logit)
         loss_G = loss_hidden + params.lambda_c * loss_class + \
                  params.lambda_adv * loss_adv + \
@@ -86,25 +85,27 @@ def train_oneepoch(dataloader, params, device):
     return cum_loss, x2_all
 
 def plot_ex(x1, x2, epoch, device):
+    # predict on x1 and x2
     with torch.no_grad():
         out1 = Z(torch.from_numpy(x1).to(device))
         pred1 = torch.argmax(out1, 1).detach().cpu().numpy()
         out2 = Z(torch.from_numpy(x2).to(device))
         pred2 = torch.argmax(out2, 1).detach().cpu().numpy()
 
+    # plot
     plt.figure(figsize=(20, 20))
     for i in range(min(40, len(x1))):
-        for j, imgs, title, c in zip(range(2), [x1, x2], ['x1', 'x2'], [pred1, pred2]):
+        for j, imgs, title, pred in zip(range(2), [x1, x2], ['x1', 'x2'], [pred1, pred2]):
             img = np.transpose(imgs[i], (1, 2, 0))
             img = (img - img.min()) / (img.max() - img.min())
             ax = plt.subplot(10, 8, 2 * i + j + 1)
             ax.imshow(img)
-            ax.set_title(title + '  ' + labelStr[c[i]])
+            ax.set_title(title + ': ' + labelStr[pred[i]])
             plt.axis('off')
     plt.savefig(save_dir + 'img_epoch' + str(epoch) + '.png')
     plt.close()
 
-def acc_under_attack(data_dict, device):
+def get_acc(data_dict, device):
     DL = utils.CustomDataset(data_dict['x2'], data_dict['target'])
     DL = DataLoader(DL, batch_size=params.batch_size, shuffle=False)
 
@@ -199,8 +200,8 @@ if __name__ == '__main__':
 
     # save
     data_dict['x2'] = x2_all
-    np.save(save_dir + 'data_dict', d)
+    np.save(save_dir + 'data_dict', data_dict)
 
     # accuracy
-    acc, avg_distort = acc_under_attack(data_dict, device)
+    acc, avg_distort = get_acc(data_dict, device)
     print('accuracy: {}'.format(acc))
