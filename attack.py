@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import shutil
 import argparse
@@ -94,7 +93,7 @@ def plot_ex(x1, x2, epoch, device):
 
     # plot
     plt.figure(figsize=(20, 20))
-    for i in range(min(40, len(x1))):
+    for i in range(40):
         for j, imgs, title, pred in zip(range(2), [x1, x2], ['x1', 'x2'], [pred1, pred2]):
             img = np.transpose(imgs[i], (1, 2, 0))
             img = (img - img.min()) / (img.max() - img.min())
