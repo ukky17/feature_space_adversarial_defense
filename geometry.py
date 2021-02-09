@@ -49,7 +49,7 @@ def main(data1, data2, radii, classifier, lb):
     DL = utils.CustomDataset(data1, data2)
     DL = DataLoader(DL, batch_size=1, shuffle=False)
 
-    props = np.zeros((3, len(x1), len(radii)))
+    props = np.zeros((3, len(data1), len(radii)))
     for idx, (d1, d2) in tqdm(enumerate(DL)):
         pred1 = torch.argmax(classifier(d1.to(device)), 1).item()
         pred2 = torch.argmax(classifier(d2.to(device)), 1).item()

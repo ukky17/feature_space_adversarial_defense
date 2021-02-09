@@ -39,7 +39,7 @@ def sample_noise(x, classifier, sigma, lb, num, n_class):
             counts += _count_arr(preds.detach().cpu().numpy(), n_class)
         return counts
 
-def main(classifier, data1, data2, sigma, lb, n_class=10):
+def main(data1, data2, sigma, classifier, lb, n_class=10):
     DL = utils.CustomDataset(data1, data2)
     DL = DataLoader(DL, batch_size=1, shuffle=False)
 
@@ -120,14 +120,11 @@ if __name__ == '__main__':
                 data2 = np.concatenate([data2, y2], axis=0)
 
     results = np.zeros((len(data1), len(sigmas)))
-    for s in tqdm(range(len(sigmas))):
-        results[:, s] = main(classifier, data1, data2, sigmas[s], lb)
-
-    # defense success rate
     ratio = np.zeros(len(sigmas))
-    for s in range(len(sigmas)):
-        ratio[s] = 100 * np.sum(results[:, s] == 1) / \
-                    np.sum(np.isnan(results[:, s]) == 0)
+    for s in tqdm(range(len(sigmas))):
+        is_correct = main(data1, data2, sigmas[s], clasifier, lb)
+        results[:, s] = is_correct
+        ratio[s] = 100 * np.sum(is_correct == 1) / np.sum(np.isnan(is_correct) == 0)
 
     # plot and save
     fig = plt.figure()
