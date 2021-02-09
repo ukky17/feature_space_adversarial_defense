@@ -84,7 +84,7 @@ def train_oneepoch(dataloader, params, device):
     return cum_loss, x2_all
 
 def plot_ex(x1, x2, epoch, device):
-    # predict on x1 and x2
+    # predict
     with torch.no_grad():
         out1 = Z(torch.from_numpy(x1).to(device))
         pred1 = torch.argmax(out1, 1).detach().cpu().numpy()
