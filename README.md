@@ -1,10 +1,12 @@
-# Requirements
+# Official implementation of "Attacking Randomized Smoothing via Feature-Space Adversarial Examples"
+
+## Requirements
 
 ```
 PyTorch >= 1.3
 ```
 
-# Run
+## Run
 
 |  Code                     |  Description
 |  ----                     | ----
@@ -13,7 +15,7 @@ PyTorch >= 1.3
 |  `geometry.sh`            |  Run geometry analysis
 |  `smoothing_predict.sh`   |  Run randomized smoothing
 
-# Code Credit
+## Code Credit
 * Classifier implementation: [torchvision package](https://github.com/pytorch/vision/tree/master/torchvision/models)
 * GAN implementation: [PyTorch-GAN](https://github.com/eriklindernoren/PyTorch-GAN)
 * Randomized smoothing: [Official implementation](https://github.com/locuslab/smoothing)
