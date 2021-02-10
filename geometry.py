@@ -100,11 +100,10 @@ if __name__ == '__main__':
                                         device)
 
     if params.space == 'input':
+        radii = np.arange(0, 101, 5)
         props, dist_mean = main(data_dict['x1'][:params.n_data],
                                 data_dict['x2'][:params.n_data],
-                                radii=np.arange(0, 101, 5),
-                                classifier=Z,
-                                lb=-float('inf'),
+                                radii=radii, classifier=Z, lb=-float('inf'),
                                 device=device)
 
     elif params.space == 'hidden':

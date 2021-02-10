@@ -52,7 +52,7 @@ def main(data1, data2, sigmas, classifier, lb, params, device, n_class=10):
                 pred2 = torch.argmax(classifier(d2), 1).item()
 
             if pred1 == pred2:
-                is_correct[idx] = np.nan
+                results[idx, s] = np.nan
                 continue
 
             counts2 = sample_noise(d2, classifier, sigmas[s], lb, params.N0,
@@ -98,11 +98,10 @@ if __name__ == '__main__':
                                         device)
 
     if params.space == 'input':
+        sigmas = np.arange(0, 0.75, 0.05)
         results, ratio = main(data_dict['x1'][:params.n_data],
                               data_dict['x2'][:params.n_data],
-                              sigmas=np.arange(0, 0.75, 0.05),
-                              classifier=Z,
-                              lb=-float('inf'),
+                              sigmas=sigmas, classifier=Z, lb=-float('inf'),
                               params=params, device=device, n_class=10)
 
     elif params.space == 'hidden':
