@@ -4,6 +4,6 @@ do
                                                      --model_path model_pth/vgg_stl.pth \
                                                      --target_layer 27 \
                                                      --exp_name vgg16_test \
-                                                     --n_data 128 \
+                                                     --n_data 8000 \
                                                      --space ${s}
 done
