@@ -51,8 +51,9 @@ def main(data1, data2, radii, classifier, lb, device):
     props = np.zeros((3, len(data1), len(radii)))
     for idx, (d1, d2) in tqdm(enumerate(DL)):
         d1, d2 = d1.to(device), d2.to(device)
-        pred1 = torch.argmax(classifier(d1), 1).item()
-        pred2 = torch.argmax(classifier(d2), 1).item()
+        with torch.no_grad():
+            pred1 = torch.argmax(classifier(d1), 1).item()
+            pred2 = torch.argmax(classifier(d2), 1).item()
 
         if pred1 == pred2:
             props[:, idx, :] = np.nan
@@ -99,35 +100,25 @@ if __name__ == '__main__':
                                         device)
 
     if params.space == 'input':
-        classifier = Z
-        radii = np.arange(0, 101, 5)
-        lb = -float('inf')
-
-        data1 = data_dict['x1'][:params.n_data]
-        data2 = data_dict['x2'][:params.n_data]
+        props, dist_mean = main(data_dict['x1'][:params.n_data],
+                                data_dict['x2'][:params.n_data],
+                                radii=np.arange(0, 101, 5),
+                                classifier=Z,
+                                lb=-float('inf'),
+                                device=device)
 
     elif params.space == 'hidden':
-        classifier = h
         if params.basenet == 'VGG_stl':
             radii = np.arange(0, 1050, 50)
         elif params.basenet == 'ResNet50_stl':
             radii = np.arange(0, 81, 4)
-        lb = 0
 
-        # get representation at the target layer
-        tmp_DL = utils.CustomDataset(data_dict['x1'][:params.n_data],
-                                     data_dict['x2'][:params.n_data])
-        tmp_DL = DataLoader(tmp_DL, batch_size=400, shuffle=False)
-        for i, (x1, x2) in enumerate(tmp_DL):
-            y1 = g(x1.to(device)).detach().cpu().numpy()
-            y2 = g(x2.to(device)).detach().cpu().numpy()
-            if i == 0:
-                data1, data2 = y1, y2
-            else:
-                data1 = np.concatenate([data1, y1], axis=0)
-                data2 = np.concatenate([data2, y2], axis=0)
+        data1, data2 = utils.get_representations(data_dict['x1'][:params.n_data],
+                                                 data_dict['x2'][:params.n_data],
+                                                 g, device)
 
-    props, dist_mean = main(data1, data2, radii, classifier, lb, device)
+        props, dist_mean = main(data1, data2, radii=radii, classifier=h, lb=0,
+                                device=device)
 
     # plot
     fig = plt.figure()

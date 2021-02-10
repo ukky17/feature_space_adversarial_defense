@@ -38,25 +38,31 @@ def sample_noise(x, classifier, sigma, lb, num, batch_size, device, n_class):
             counts += _count_arr(preds.detach().cpu().numpy(), n_class)
         return counts
 
-def main(data1, data2, sigma, classifier, lb, params, device, n_class=10):
-    DL = utils.CustomDataset(data1, data2)
-    DL = DataLoader(DL, batch_size=1, shuffle=False)
+def main(data1, data2, sigmas, classifier, lb, params, device, n_class=10):
+    results = np.zeros((len(data1), len(sigmas)))
+    ratio = np.zeros(len(sigmas))
+    for s in tqdm(range(len(sigmas))):
+        DL = utils.CustomDataset(data1, data2)
+        DL = DataLoader(DL, batch_size=1, shuffle=False)
 
-    is_correct = np.zeros(len(data1))
-    for idx, (d1, d2) in enumerate(DL):
-        d1, d2 = d1.to(device), d2.to(device)
-        pred1 = torch.argmax(classifier(d1), 1).item()
-        pred2 = torch.argmax(classifier(d2), 1).item()
+        for idx, (d1, d2) in enumerate(DL):
+            d1, d2 = d1.to(device), d2.to(device)
+            with torch.no_grad():
+                pred1 = torch.argmax(classifier(d1), 1).item()
+                pred2 = torch.argmax(classifier(d2), 1).item()
 
-        if pred1 == pred2:
-            is_correct[idx] = np.nan
-            continue
+            if pred1 == pred2:
+                is_correct[idx] = np.nan
+                continue
 
-        counts2 = sample_noise(d2, classifier, sigma, lb, params.N0,
-                               params.batch_size, device, n_class)
-        pred2 = counts2.argmax().item()
-        is_correct[idx] = int(pred2 == pred1)
-    return is_correct
+            counts2 = sample_noise(d2, classifier, sigmas[s], lb, params.N0,
+                                   params.batch_size, device, n_class)
+            sm_pred2 = counts2.argmax().item()
+            results[idx, s] = int(sm_pred2 == pred1)
+
+        ratio[s] = 100 * np.sum(results[:, s] == 1) / np.sum(np.isnan(results[:, s]) == 0)
+
+    return results, ratio
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -92,42 +98,27 @@ if __name__ == '__main__':
                                         device)
 
     if params.space == 'input':
-        classifier = Z
-        sigmas = np.arange(0, 0.75, 0.05)
-        lb = -float('inf')
-
-        data1 = data_dict['x1'][:params.n_data]
-        data2 = data_dict['x2'][:params.n_data]
+        results, ratio = main(data_dict['x1'][:params.n_data],
+                              data_dict['x2'][:params.n_data],
+                              sigmas=np.arange(0, 0.75, 0.05),
+                              classifier=Z,
+                              lb=-float('inf'),
+                              params=params, device=device, n_class=10)
 
     elif params.space == 'hidden':
-        classifier = h
         if params.basenet == 'VGG_stl':
             sigmas = np.arange(0, 5.25, 0.25)
         elif params.basenet == 'ResNet50_stl':
             sigmas = np.arange(0, 0.42, 0.02)
-        lb = 0
 
-        # get representation at the target layer
-        tmp_DL = utils.CustomDataset(data_dict['x1'][:params.n_data],
-                                     data_dict['x2'][:params.n_data])
-        tmp_DL = DataLoader(tmp_DL, batch_size=400, shuffle=False)
-        for i, (x1, x2) in enumerate(tmp_DL):
-            y1 = g(x1.to(device)).detach().cpu().numpy()
-            y2 = g(x2.to(device)).detach().cpu().numpy()
-            if i == 0:
-                data1, data2 = y1, y2
-            else:
-                data1 = np.concatenate([data1, y1], axis=0)
-                data2 = np.concatenate([data2, y2], axis=0)
+        data1, data2 = utils.get_representations(data_dict['x1'][:params.n_data],
+                                                 data_dict['x2'][:params.n_data],
+                                                 g, device)
 
-    results = np.zeros((len(data1), len(sigmas)))
-    ratio = np.zeros(len(sigmas))
-    for s in tqdm(range(len(sigmas))):
-        is_correct = main(data1, data2, sigmas[s], classifier, lb, params, device)
-        results[:, s] = is_correct
-        ratio[s] = 100 * np.sum(is_correct == 1) / np.sum(np.isnan(is_correct) == 0)
+        results, ratio = main(data1, data2, sigmas=sigmas, classifier=h, lb=0,
+                              params=params, device=device, n_class=10)
 
-    # plot and save
+    # plot
     fig = plt.figure()
     ax = plt.subplot(1, 1, 1)
     ax.plot(sigmas, ratio)
