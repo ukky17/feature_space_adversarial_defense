@@ -1,9 +1,9 @@
-# Official implementation of "Attacking Randomized Smoothing via Feature-Space Adversarial Examples"
+# Official implementation of "Brain-inspired noise in higher layers for adversarial robustness"
 
 ## Requirements
 
 ```
-PyTorch >= 1.3
+PyTorch >= 1.7
 ```
 
 ## Run
