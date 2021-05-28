@@ -7,16 +7,15 @@ from torch.utils.data import DataLoader
 
 def data_loader(dataset, batch_size):
     if dataset == 'stl10':
-        transform_test  = tfs.Compose([tfs.ToTensor(),
-                                       tfs.Normalize((0.5, 0.5, 0.5),
-                                                     (0.5, 0.5, 0.5))])
+        transform_test = tfs.Compose([tfs.ToTensor(),
+                                      tfs.Normalize((0.5, 0.5, 0.5),
+                                                    (0.5, 0.5, 0.5))])
         data_test = dst.STL10('data/STL10', download=True, split='test',
                                 transform=transform_test)
         dataloader = DataLoader(data_test, batch_size=batch_size, shuffle=False)
         labelStr = ["airplane", "bird", "car", "cat", "deer", "dog",
                     "horse", "monkey", "ship", "truck"]
         n_class, img_size = 10, (3, 96, 96)
-
     return dataloader, labelStr, n_class, img_size
 
 def select_correct(dataloader, model_Z, device):
