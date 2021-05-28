@@ -32,7 +32,7 @@ def sample_noise(x, classifier, sigma, lb, num, batch_size, device, n_class):
             batch_new = batch + noise
 
             if lb == 0:
-                batch_new = torch.where(batch_new >= 0, batch_new, batch - noise)
+                batch_new = torch.maximum(batch_new, torch.zeros(1, device=device))
 
             preds = torch.argmax(classifier(batch_new), 1)
             counts += _count_arr(preds.detach().cpu().numpy(), n_class)
@@ -106,9 +106,9 @@ if __name__ == '__main__':
 
     elif params.space == 'hidden':
         if params.basenet == 'VGG_stl':
-            sigmas = np.arange(0, 5.25, 0.25)
+            sigmas = np.arange(0, 10.5, 0.5)
         elif params.basenet == 'ResNet50_stl':
-            sigmas = np.arange(0, 0.42, 0.02)
+            sigmas = np.arange(0, 1.05, 0.05)
 
         data1, data2 = utils.get_representations(data_dict['x1'][:params.n_data],
                                                  data_dict['x2'][:params.n_data],

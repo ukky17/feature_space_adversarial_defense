@@ -32,7 +32,7 @@ def random_noise(model, data, radii, lb, n_iter, device):
                 data_new = data + noise
 
                 if lb == 0:
-                    data_new = torch.where(data_new >= 0, data_new, data - noise)
+                    data_new = torch.maximum(data_new, torch.zeros(1, device=device))
 
                 data_noise[i] = data_new
 
@@ -108,9 +108,9 @@ if __name__ == '__main__':
 
     elif params.space == 'hidden':
         if params.basenet == 'VGG_stl':
-            radii = np.arange(0, 1050, 50)
+            radii = np.arange(0, 2100, 100)
         elif params.basenet == 'ResNet50_stl':
-            radii = np.arange(0, 81, 4)
+            radii = np.arange(0, 201, 10)
 
         data1, data2 = utils.get_representations(data_dict['x1'][:params.n_data],
                                                  data_dict['x2'][:params.n_data],
