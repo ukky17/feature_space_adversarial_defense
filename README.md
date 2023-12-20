@@ -30,4 +30,4 @@ PyTorch >= 1.7
 
 ## Citation
 
-**Adversarial attacks and defenses using feature-space stochasticity**. Jumpei Ukita and Kenichi Ohki, Neural Networks, 2023. https://www.sciencedirect.com/science/article/abs/pii/S0893608023004422
+**Adversarial attacks and defenses using feature-space stochasticity**. Jumpei Ukita and Kenichi Ohki, Neural Networks, 2023. [Paper link](https://www.sciencedirect.com/science/article/abs/pii/S0893608023004422)
